@@ -4,58 +4,60 @@ from collections import abc
 from contextlib import contextmanager
 from functools import wraps
 
+import numpy as np
 import torch
-from mmengine.logging import MMLogger
+
+from mmdet.utils import get_root_logger
 
 
 def cast_tensor_type(inputs, src_type=None, dst_type=None):
     """Recursively convert Tensor in inputs from ``src_type`` to ``dst_type``.
 
     Args:
-        inputs: Inputs that to be casted.
+        inputs: Inputs that are to be cast.
         src_type (torch.dtype | torch.device): Source type.
-        src_type (torch.dtype | torch.device): Destination type.
+        dst_type (torch.dtype | torch.device): Destination type.
 
     Returns:
-        The same type with inputs, but all contained Tensors have been cast.
+        The same type as inputs, but all contained Tensors have been cast.
     """
     assert dst_type is not None
+
+    # numpy.ndarray를 torch.Tensor로 변환
+    if isinstance(inputs, np.ndarray):
+        inputs = torch.from_numpy(inputs)
+
+    # torch.Tensor일 때만 변환 수행
     if isinstance(inputs, torch.Tensor):
         if isinstance(dst_type, torch.device):
-            # convert Tensor to dst_device
-            if hasattr(inputs, 'to') and \
-                    hasattr(inputs, 'device') and \
-                    (inputs.device == src_type or src_type is None):
+            # Convert Tensor to the destination device
+            if hasattr(inputs, 'to') and hasattr(inputs, 'device') and \
+               (inputs.device == src_type or src_type is None):
                 return inputs.to(dst_type)
             else:
                 return inputs
         else:
-            # convert Tensor to dst_dtype
-            if hasattr(inputs, 'to') and \
-                    hasattr(inputs, 'dtype') and \
-                    (inputs.dtype == src_type or src_type is None):
+            # Convert Tensor to the destination dtype
+            if hasattr(inputs, 'to') and hasattr(inputs, 'dtype') and \
+               (inputs.dtype == src_type or src_type is None):
                 return inputs.to(dst_type)
             else:
                 return inputs
-        # we need to ensure that the type of inputs to be casted are the same
-        # as the argument `src_type`.
     elif isinstance(inputs, abc.Mapping):
         return type(inputs)({
             k: cast_tensor_type(v, src_type=src_type, dst_type=dst_type)
             for k, v in inputs.items()
         })
-    elif isinstance(inputs, abc.Iterable):
+    elif isinstance(inputs, abc.Iterable) and not isinstance(inputs, str):
         return type(inputs)(
             cast_tensor_type(item, src_type=src_type, dst_type=dst_type)
             for item in inputs)
-    # TODO: Currently not supported
-    # elif isinstance(inputs, InstanceData):
-    #     for key, value in inputs.items():
-    #         inputs[key] = cast_tensor_type(
-    #             value, src_type=src_type, dst_type=dst_type)
-    #     return inputs
     else:
+        # 텐서나 처리할 수 없는 데이터는 그대로 반환
         return inputs
+
+
+
 
 
 @contextmanager
@@ -124,19 +126,16 @@ class AvoidOOM:
         """Makes a function retry itself after encountering pytorch's CUDA OOM
         error.
 
-        The implementation logic is referred to
-        https://github.com/facebookresearch/detectron2/blob/main/detectron2/utils/memory.py
-
         Args:
             func: a stateless callable that takes tensor-like objects
                 as arguments.
+
         Returns:
             func: a callable which retries `func` if OOM is encountered.
-        """  # noqa: W605
+        """
 
         @wraps(func)
         def wrapped(*args, **kwargs):
-
             # raw function
             if not self.test:
                 with _ignore_torch_cuda_oom():
@@ -157,14 +156,15 @@ class AvoidOOM:
                     break
             if dtype is None or device is None:
                 raise ValueError('There is no tensor in the inputs, '
-                                 'cannot get dtype and device.')
+                                'cannot get dtype and device.')
 
             # Convert to FP16
             fp16_args = cast_tensor_type(args, dst_type=torch.half)
+            print(kwargs)
             fp16_kwargs = cast_tensor_type(kwargs, dst_type=torch.half)
-            logger = MMLogger.get_current_instance()
+            logger = get_root_logger()
             logger.warning(f'Attempting to copy inputs of {str(func)} '
-                           'to FP16 due to CUDA OOM')
+                        'to FP16 due to CUDA OOM')
 
             # get input tensor type, the output type will same as
             # the first parameter type.
@@ -180,7 +180,7 @@ class AvoidOOM:
             # therefore print a notice.
             if self.to_cpu:
                 logger.warning(f'Attempting to copy inputs of {str(func)} '
-                               'to CPU due to CUDA OOM')
+                            'to CPU due to CUDA OOM')
                 cpu_device = torch.empty(0).device
                 cpu_args = cast_tensor_type(args, dst_type=cpu_device)
                 cpu_kwargs = cast_tensor_type(kwargs, dst_type=cpu_device)
@@ -194,11 +194,11 @@ class AvoidOOM:
                     return output
 
                 warnings.warn('Cannot convert output to GPU due to CUDA OOM, '
-                              'the output is now on CPU, which might cause '
-                              'errors if the output need to interact with GPU '
-                              'data in subsequent operations')
+                            'the output is now on CPU, which might cause '
+                            'errors if the output need to interact with GPU '
+                            'data in subsequent operations')
                 logger.warning('Cannot convert output to GPU due to '
-                               'CUDA OOM, the output is on CPU now.')
+                            'CUDA OOM, the output is on CPU now.')
 
                 return func(*cpu_args, **cpu_kwargs)
             else:
@@ -206,6 +206,7 @@ class AvoidOOM:
                 return func(*args, **kwargs)
 
         return wrapped
+
 
 
 # To use AvoidOOM as a decorator

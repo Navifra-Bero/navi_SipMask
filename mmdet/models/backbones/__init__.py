@@ -1,6 +1,5 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 from .csp_darknet import CSPDarknet
-from .cspnext import CSPNeXt
 from .darknet import Darknet
 from .detectors_resnet import DetectoRS_ResNet
 from .detectors_resnext import DetectoRS_ResNeXt
@@ -13,15 +12,21 @@ from .regnet import RegNet
 from .res2net import Res2Net
 from .resnest import ResNeSt
 from .resnet import ResNet, ResNetV1d
+from .rgbd2resnet import ResNet_depth
+from .resnet_attention import ResnetAtt
+from .rgbdresnet import RGBDResNet
 from .resnext import ResNeXt
 from .ssd_vgg import SSDVGG
 from .swin import SwinTransformer
 from .trident_resnet import TridentResNet
+from .rgbdresnet import RGBDResNet
+from .convnext_rgbd import RGBDConvNeXt
+
 
 __all__ = [
-    'RegNet', 'ResNet', 'ResNetV1d', 'ResNeXt', 'SSDVGG', 'HRNet',
+    'RegNet', 'ResNet', 'ResNetV1d', 'ResNeXt', 'RGBDResNet', 'SSDVGG', 'HRNet', 'ResNet_depth', 'RGBDResNet', 'ResnetAtt',
     'MobileNetV2', 'Res2Net', 'HourglassNet', 'DetectoRS_ResNet',
     'DetectoRS_ResNeXt', 'Darknet', 'ResNeSt', 'TridentResNet', 'CSPDarknet',
     'SwinTransformer', 'PyramidVisionTransformer',
-    'PyramidVisionTransformerV2', 'EfficientNet', 'CSPNeXt'
+    'PyramidVisionTransformerV2', 'RGBDConvNeXt', 'EfficientNet', 
 ]
